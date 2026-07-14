@@ -1,0 +1,85 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  /* Color Palette - Deep Teal & Gold Academic */
+  --primary: #0f4c5c;
+  --primary-light: #1a7a8a;
+  --primary-dark: #082f3a;
+  --accent: #e8a020;
+  --accent-light: #f5c14a;
+  --accent-dark: #c07010;
+
+  --surface: #f5f7f8;
+  --surface-raised: #ffffff;
+  --surface-inset: #e8edf0;
+
+  --text-primary: #0d1f26;
+  --text-secondary: #4a6572;
+  --text-muted: #8a9fa8;
+  --text-inverse: #ffffff;
+
+  --success: #1a7a50;
+  --success-bg: #e8f5ed;
+  --danger: #c0392b;
+  --danger-bg: #fdf0ee;
+  --warning: #c07010;
+  --warning-bg: #fdf5e6;
+  --info: #1a5a8a;
+  --info-bg: #e6f0fa;
+
+  --border: #d0dce0;
+  --border-strong: #a0b8c0;
+  --shadow-sm: 0 1px 3px rgba(15,76,92,0.08);
+  --shadow-md: 0 4px 12px rgba(15,76,92,0.12);
+  --shadow-lg: 0 8px 24px rgba(15,76,92,0.16);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  --sidebar-width: 240px;
+  --header-height: 60px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5 {
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-primary);
+}
+
+a { color: inherit; text-decoration: none; }
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: 14px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--surface-inset); }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* Utility */
+.mono { font-family: 'DM Mono', monospace; }
