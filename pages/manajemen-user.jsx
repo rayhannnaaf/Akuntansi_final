@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { supabase } from '../../lib/supabase';
-import Layout from '../../components/Layout';
+import { supabase } from '../lib/supabase';
+import Layout from '../components/layout/Layout'
 import toast from 'react-hot-toast';
 
 // ── Create User Modal ────────────────────────────────────────────────────
