@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ email: '', password: '', nama: '', role: 'guru' });
+  const [form, setForm] = useState({ email: '', password: '', nama: '', role: 'siswa' });
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -122,7 +122,7 @@ export default function RegisterPage() {
               type="email"
               value={form.email}
               onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-              placeholder="guru@sekolah.sch.id"
+              placeholder="siswa@sekolah.sch.id"
               style={inputStyle}
               onFocus={e => e.target.style.borderColor = 'var(--primary)'}
               onBlur={e => e.target.style.borderColor = 'var(--border)'}
@@ -161,7 +161,7 @@ export default function RegisterPage() {
               onFocus={e => e.target.style.borderColor = 'var(--primary)'}
               onBlur={e => e.target.style.borderColor = 'var(--border)'}
             >
-              <option value="guru">Guru</option>
+              <option value="siswa">siswa</option>
               <option value="admin">Admin</option>
             </select>
           </div>

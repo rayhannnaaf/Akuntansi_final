@@ -10,7 +10,7 @@ CREATE TABLE public.profiles (
   email TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'siswa' CHECK (role IN ('admin', 'siswa')),
   created_at TIMESTAMPTZ DEFAULT NOW()
-);  
+);
 
 -- Trigger: otomatis buat profile saat user baru daftar
 CREATE OR REPLACE FUNCTION public.handle_new_user()

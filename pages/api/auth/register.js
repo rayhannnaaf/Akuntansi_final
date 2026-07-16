@@ -8,14 +8,14 @@ export default async function handler(req, res) {
   const result = await requireRole(req, res, ['admin']);
   if (!result) return;
 
-  const { email, password, nama, role = 'guru' } = req.body;
+  const { email, password, nama, role = 'siswa' } = req.body;
 
   if (!email || !password || !nama) {
     return res.status(400).json({ error: 'Email, password, dan nama wajib diisi' });
   }
 
-  if (!['admin', 'guru'].includes(role)) {
-    return res.status(400).json({ error: 'Role tidak valid. Gunakan: admin atau guru' });
+  if (!['admin', 'siswa'].includes(role)) {
+    return res.status(400).json({ error: 'Role tidak valid. Gunakan: admin atau siswa' });
   }
 
   if (password.length < 6) {

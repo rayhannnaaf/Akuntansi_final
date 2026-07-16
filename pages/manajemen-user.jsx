@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 
 // ── Create User Modal ────────────────────────────────────────────────────
 function CreateUserModal({ onClose, onSuccess }) {
-  const [form, setForm] = useState({ nama: '', email: '', password: '', role: 'guru' });
+  const [form, setForm] = useState({ nama: '', email: '', password: '', role: 'siswa' });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -146,7 +146,7 @@ function CreateUserModal({ onClose, onSuccess }) {
         {/* Modal body */}
         <div style={{ padding: '22px 24px' }}>
           {field('nama', 'Nama Lengkap', 'text', 'Budi Santoso')}
-          {field('email', 'Email', 'email', 'guru@sekolah.sch.id')}
+          {field('email', 'Email', 'email', 'siswa@sekolah.sch.id')}
           {field('password', 'Password', 'password', 'Minimal 6 karakter')}
 
           {/* Role selector */}
@@ -159,7 +159,7 @@ function CreateUserModal({ onClose, onSuccess }) {
               Role
             </label>
             <div style={{ display: 'flex', gap: 10 }}>
-              {['guru', 'admin'].map(r => (
+              {['siswa', 'admin'].map(r => (
                 <button
                   key={r}
                   onClick={() => setForm(f => ({ ...f, role: r }))}
@@ -177,14 +177,14 @@ function CreateUserModal({ onClose, onSuccess }) {
                       : 'var(--text-secondary)',
                   }}
                 >
-                  {r === 'guru' ? '📚 Guru' : '🔑 Admin'}
+                  {r === 'siswa' ? '📚 siswa' : '🔑 Admin'}
                 </button>
               ))}
             </div>
             <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
               {form.role === 'admin'
                 ? 'Admin dapat mengelola pengguna dan semua data sistem.'
-                : 'Guru dapat mencatat transaksi dan melihat laporan.'}
+                : 'siswa dapat mencatat transaksi dan melihat laporan.'}
             </p>
           </div>
 
@@ -289,7 +289,7 @@ export default function ManajemenUserPage() {
   );
 
   const adminCount = users.filter(u => u.role === 'admin').length;
-  const guruCount  = users.filter(u => u.role === 'guru').length;
+  const siswaCount  = users.filter(u => u.role === 'siswa').length;
 
   return (
     <Layout title="Manajemen User">
@@ -311,7 +311,7 @@ export default function ManajemenUserPage() {
             Manajemen Pengguna
           </h2>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0' }}>
-            Kelola akun guru dan admin sistem
+            Kelola akun siswa dan admin sistem
           </p>
         </div>
         <button
@@ -337,7 +337,7 @@ export default function ManajemenUserPage() {
       <div style={{ display: 'flex', gap: 14, marginBottom: 22, flexWrap: 'wrap' }}>
         {[
           { label: 'Total Pengguna', value: users.length, icon: '👥', color: 'var(--primary)' },
-          { label: 'Guru', value: guruCount,  icon: '📚', color: '#2980b9' },
+          { label: 'siswa', value: siswaCount,  icon: '📚', color: '#2980b9' },
           { label: 'Admin', value: adminCount, icon: '🔑', color: 'var(--accent-dark)' },
         ].map(s => (
           <div key={s.label} style={{
