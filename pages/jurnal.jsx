@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Layout from '../components/layout/Layout';
 import { Card, Table, Tr, Td, Spinner, Empty, Badge, Input, Select } from '../components/ui';
-import { supabase } from '../lib/supabase';
+import { authHeader } from '../lib/auth-client';
 import { formatRupiah } from '../lib/akuntansi';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { id } from 'date-fns/locale';
@@ -18,20 +18,19 @@ export default function JurnalPage() {
 
   const loadJurnal = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('jurnal_entri')
-      .select(`
-        *,
-        akun(kode, nama, tipe),
-        transaksi(tanggal, nomor_bukti, keterangan)
-      `)
-      .gte('transaksi.tanggal', filter.dari)
-      .lte('transaksi.tanggal', filter.sampai)
-      .order('created_at', { ascending: true });
+    try {
+      const params = new URLSearchParams({ dari: filter.dari, sampai: filter.sampai });
+      const res = await fetch(`/api/jurnal?${params}`, { headers: { ...authHeader() } });
+      const json = await res.json();
 
-    // Filter null transaksi (karena join)
-    const filtered = (data || []).filter(j => j.transaksi);
-    setJurnalData(filtered);
+      if (!res.ok) {
+        setJurnalData([]);
+      } else {
+        setJurnalData(json.data || []);
+      }
+    } catch (err) {
+      setJurnalData([]);
+    }
     setLoading(false);
   };
 
@@ -52,7 +51,6 @@ export default function JurnalPage() {
         </p>
       </div>
 
-      {/* Filter */}
       <Card style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end' }}>
           <Input
@@ -104,7 +102,6 @@ export default function JurnalPage() {
               ))}
             </Table>
 
-            {/* Footer Total */}
             <div style={{
               display: 'grid', gridTemplateColumns: '1fr auto auto',
               gap: 0,

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Layout from '../components/layout/Layout';
 import { Card, Table, Tr, Td, Button, Input, Select, Spinner, Empty, Badge } from '../components/ui';
-import { supabase } from '../lib/supabase';
+import { getUser, authHeader } from '../lib/auth-client';
 import { formatRupiah } from '../lib/akuntansi';
 import toast from 'react-hot-toast';
 
@@ -21,19 +21,17 @@ export default function AkunPage() {
   const [filterTipe, setFilterTipe] = useState('');
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session) {
-        const { data } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
-        setProfile(data);
-      }
-    });
+    // Pengganti supabase.auth.getSession() + query profiles — role sudah ada di token
+    setProfile(getUser());
     loadAkun();
   }, []);
 
   const loadAkun = async () => {
     setLoading(true);
-    const { data } = await supabase.from('akun').select('*').order('kode');
-    setAkunList(data || []);
+    // Pengganti supabase.from('akun').select('*').order('kode')
+    const res = await fetch('/api/akun', { headers: { ...authHeader() } });
+    const result = await res.json();
+    setAkunList(result.data || []);
     setLoading(false);
   };
 
@@ -43,10 +41,9 @@ export default function AkunPage() {
       return;
     }
     setSaving(true);
-    const { data: { session } } = await supabase.auth.getSession();
     const res = await fetch('/api/akun/buat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
       body: JSON.stringify({ ...form, saldo_awal: parseFloat(form.saldo_awal) || 0 }),
     });
     const result = await res.json();
@@ -97,7 +94,6 @@ export default function AkunPage() {
         </div>
       </div>
 
-      {/* Form Akun Baru (Admin Only) */}
       {showForm && profile?.role === 'admin' && (
         <Card style={{ marginBottom: 24 }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, color: 'var(--primary)', paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
@@ -121,7 +117,6 @@ export default function AkunPage() {
         </Card>
       )}
 
-      {/* Akun List by Group */}
       {loading ? <Spinner /> : akunList.length === 0 ? (
         <Empty message="Belum ada akun. Jalankan SQL schema terlebih dahulu." icon="📒" />
       ) : (

@@ -1,10 +1,9 @@
 import { requireRole } from '../../../lib/auth';
-import { supabaseAdmin } from '../../../lib/supabase';
+import { query } from '../../../lib/db';
 
 const TIPE_VALID = ['aset', 'kewajiban', 'ekuitas', 'pendapatan', 'beban'];
 
 export default async function handler(req, res) {
-  const db = supabaseAdmin();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   // Hanya admin yang bisa membuat akun baru
@@ -22,23 +21,16 @@ export default async function handler(req, res) {
   }
 
   // Cek kode sudah ada
-  const { data: existing } = await db
-    .from('akun')
-    .select('id')
-    .eq('kode', kode)
-    .single();
-
-  if (existing) {
+  const { rows: existing } = await query('SELECT id FROM akun WHERE kode = $1', [kode]);
+  if (existing.length > 0) {
     return res.status(400).json({ error: `Kode akun "${kode}" sudah digunakan` });
   }
 
-  const { data, error } = await db
-    .from('akun')
-    .insert({ kode, nama, tipe, saldo_awal: parseFloat(saldo_awal) || 0, keterangan, aktif: true })
-    .select()
-    .single();
+  const { rows } = await query(
+    `INSERT INTO akun (kode, nama, tipe, saldo_awal, keterangan, aktif)
+     VALUES ($1, $2, $3, $4, $5, true) RETURNING *`,
+    [kode, nama, tipe, parseFloat(saldo_awal) || 0, keterangan]
+  );
 
-  if (error) return res.status(500).json({ error: error.message });
-
-  return res.status(201).json({ success: true, data });
+  return res.status(201).json({ success: true, data: rows[0] });
 }

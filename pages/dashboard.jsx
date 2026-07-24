@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import Layout from '../components/layout/Layout';
 import { StatCard, Card, Spinner, Table, Tr, Td, Badge } from '../components/ui';
-import { supabase } from '../lib/supabase';
-import { formatRupiah, hitungNeracaSaldo, hitungLabaRugi, TIPE_AKUN } from '../lib/akuntansi';
+import { authHeader } from '../lib/auth-client';
+import { formatRupiah, TIPE_AKUN } from '../lib/akuntansi';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
@@ -18,44 +18,38 @@ export default function Dashboard() {
   const loadDashboard = async () => {
     setLoading(true);
     try {
-      // Ambil semua akun
-      const { data: akunList } = await supabase.from('akun').select('*').eq('aktif', true);
-      // Ambil semua jurnal
-      const { data: jurnalList } = await supabase.from('jurnal_entri').select('*');
-      // Ambil transaksi terbaru
-      const { data: transaksi } = await supabase
-        .from('transaksi')
-        .select('*, profiles(nama)')
-        .order('tanggal', { ascending: false })
-        .limit(8);
+      // Pengganti dua query supabase (akun + jurnal_entri) — sudah dihitung di API
+      const laporanRes = await fetch('/api/laporan/neraca-saldo', { headers: { ...authHeader() } });
+      const laporan = await laporanRes.json();
 
-      if (akunList && jurnalList) {
-        const neraca = hitungNeracaSaldo(akunList, jurnalList);
-        const lr = hitungLabaRugi(neraca);
-        const totalAset = neraca
+      // Pengganti supabase.from('transaksi').select('*, profiles(nama)').order(...).limit(8)
+      const transaksiRes = await fetch('/api/transaksi?limit=8', { headers: { ...authHeader() } });
+      const transaksiResult = await transaksiRes.json();
+
+      if (laporan.neracaSaldo) {
+        const totalAset = laporan.neracaSaldo
           .filter(a => a.tipe === TIPE_AKUN.ASET)
           .reduce((s, a) => s + Math.max(a.saldo, 0), 0);
 
         setStats({
           totalAset,
-          totalPendapatan: lr.totalPendapatan,
-          totalBeban: lr.totalBeban,
-          labaRugi: lr.labaRugiBersih,
+          totalPendapatan: laporan.labaRugi.totalPendapatan,
+          totalBeban: laporan.labaRugi.totalBeban,
+          labaRugi: laporan.labaRugi.labaRugiBersih,
         });
       }
 
-      if (transaksi) setTransaksiTerbaru(transaksi);
+      if (transaksiResult.data) setTransaksiTerbaru(transaksiResult.data);
 
       // Chart data bulanan (6 bulan terakhir)
-      buildChartData(jurnalList, akunList);
+      buildChartData();
     } catch (err) {
       console.error(err);
     }
     setLoading(false);
   };
 
-  const buildChartData = (jurnalList, akunList) => {
-    if (!jurnalList || !akunList) return;
+  const buildChartData = () => {
     const now = new Date();
     const months = [];
     for (let i = 5; i >= 0; i--) {
@@ -169,7 +163,7 @@ export default function Dashboard() {
               <Td><span style={{ fontFamily: 'DM Mono', fontSize: 12 }}>{t.nomor_bukti}</span></Td>
               <Td>{t.keterangan}</Td>
               <Td mono right>{formatRupiah(t.total_nilai)}</Td>
-              <Td>{t.profiles?.nama || '-'}</Td>
+              <Td>{t.profiles_nama || '-'}</Td>
             </Tr>
           ))}
         </Table>

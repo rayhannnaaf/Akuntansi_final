@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { supabase } from '../lib/supabase';
+import { getUser, authHeader } from '../lib/auth-client';
 import Layout from '../components/layout/Layout'
 import toast from 'react-hot-toast';
 
@@ -24,9 +24,8 @@ function CreateUserModal({ onClose, onSuccess }) {
     if (Object.keys(e).length) { setErrors(e); return; }
     setLoading(true);
     try {
-      // Ambil token dari session aktif untuk dikirim ke API
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      const user = getUser();
+      if (!user) {
         toast.error('Sesi habis, silakan login ulang');
         setLoading(false);
         return;
@@ -36,7 +35,7 @@ function CreateUserModal({ onClose, onSuccess }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
+          ...authHeader(),
         },
         body: JSON.stringify(form),
       });
@@ -110,7 +109,6 @@ function CreateUserModal({ onClose, onSuccess }) {
           overflow: 'hidden',
         }}
       >
-        {/* Modal header */}
         <div style={{
           padding: '20px 24px 18px',
           borderBottom: '1px solid var(--border)',
@@ -143,13 +141,11 @@ function CreateUserModal({ onClose, onSuccess }) {
           >×</button>
         </div>
 
-        {/* Modal body */}
         <div style={{ padding: '22px 24px' }}>
           {field('nama', 'Nama Lengkap', 'text', 'Budi Santoso')}
           {field('email', 'Email', 'email', 'siswa@sekolah.sch.id')}
           {field('password', 'Password', 'password', 'Minimal 6 karakter')}
 
-          {/* Role selector */}
           <div style={{ marginBottom: 24 }}>
             <label style={{
               display: 'block', fontSize: 11, fontWeight: 700,
@@ -188,7 +184,6 @@ function CreateUserModal({ onClose, onSuccess }) {
             </p>
           </div>
 
-          {/* Actions */}
           <div style={{ display: 'flex', gap: 10 }}>
             <button
               onClick={onClose}
@@ -224,6 +219,383 @@ function CreateUserModal({ onClose, onSuccess }) {
   );
 }
 
+// ── Edit User Modal ──────────────────────────────────────────────────────
+function EditUserModal({ user, onClose, onSuccess }) {
+  const [form, setForm] = useState({ nama: user.nama, role: user.role });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async () => {
+    if (!form.nama.trim()) { setError('Nama wajib diisi'); return; }
+    setError('');
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeader(),
+        },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Gagal memperbarui pengguna');
+        setError(data.error || '');
+      } else {
+        toast.success(`Pengguna "${form.nama}" berhasil diperbarui`);
+        onSuccess();
+      }
+    } catch {
+      toast.error('Terjadi kesalahan jaringan');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 200,
+        background: 'rgba(0,0,0,0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 20,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 400,
+          background: 'var(--surface-raised)',
+          borderRadius: 18,
+          boxShadow: '0 24px 64px rgba(0,0,0,0.25)',
+          overflow: 'hidden',
+        }}
+      >
+        <div style={{
+          padding: '20px 24px 18px',
+          borderBottom: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', gap: 12,
+        }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10,
+            background: 'linear-gradient(135deg, var(--primary), var(--primary-light))',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 16, flexShrink: 0,
+          }}>✏️</div>
+          <div>
+            <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--primary)', margin: 0 }}>
+              Edit Pengguna
+            </h2>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+              {user.email}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              marginLeft: 'auto', width: 28, height: 28,
+              borderRadius: 6, border: 'none',
+              background: 'var(--surface-inset)',
+              color: 'var(--text-muted)',
+              fontSize: 16, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >×</button>
+        </div>
+
+        <div style={{ padding: '22px 24px' }}>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{
+              display: 'block', fontSize: 11, fontWeight: 700,
+              color: 'var(--text-secondary)', marginBottom: 6,
+              textTransform: 'uppercase', letterSpacing: 0.6,
+            }}>
+              Nama Lengkap
+            </label>
+            <input
+              type="text"
+              value={form.nama}
+              onChange={e => setForm(f => ({ ...f, nama: e.target.value }))}
+              style={{
+                width: '100%', padding: '10px 13px',
+                border: '1.5px solid var(--border)',
+                borderRadius: 9, fontSize: 13,
+                background: 'var(--surface)',
+                outline: 'none', boxSizing: 'border-box',
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <label style={{
+              display: 'block', fontSize: 11, fontWeight: 700,
+              color: 'var(--text-secondary)', marginBottom: 8,
+              textTransform: 'uppercase', letterSpacing: 0.6,
+            }}>
+              Role
+            </label>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {['siswa', 'admin'].map(r => (
+                <button
+                  key={r}
+                  onClick={() => setForm(f => ({ ...f, role: r }))}
+                  style={{
+                    flex: 1, padding: '9px 0',
+                    borderRadius: 9, fontSize: 13, fontWeight: 600,
+                    cursor: 'pointer', transition: 'all 0.15s',
+                    border: '1.5px solid',
+                    borderColor: form.role === r ? 'var(--primary)' : 'var(--border)',
+                    background: form.role === r
+                      ? (r === 'admin' ? 'rgba(232,160,32,0.12)' : 'rgba(15,76,92,0.08)')
+                      : 'var(--surface)',
+                    color: form.role === r
+                      ? (r === 'admin' ? 'var(--accent-dark)' : 'var(--primary)')
+                      : 'var(--text-secondary)',
+                  }}
+                >
+                  {r === 'siswa' ? '📚 siswa' : '🔑 Admin'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {error && (
+            <p style={{ fontSize: 12, color: 'var(--danger)', marginBottom: 12 }}>{error}</p>
+          )}
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              onClick={onClose}
+              style={{
+                flex: 1, padding: '10px 0', borderRadius: 9,
+                background: 'var(--surface-inset)',
+                border: '1px solid var(--border)',
+                fontSize: 13, fontWeight: 600,
+                color: 'var(--text-secondary)', cursor: 'pointer',
+              }}
+            >
+              Batal
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={loading}
+              style={{
+                flex: 2, padding: '10px 0', borderRadius: 9,
+                background: loading ? 'var(--text-muted)' : 'var(--primary)',
+                border: 'none', color: '#fff',
+                fontSize: 13, fontWeight: 700,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                transition: 'all 0.15s',
+                boxShadow: loading ? 'none' : '0 4px 12px rgba(15,76,92,0.3)',
+              }}
+            >
+              {loading ? 'Menyimpan...' : 'Simpan Perubahan'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Delete Confirm Modal ─────────────────────────────────────────────────
+function DeleteUserModal({ user, onClose, onConfirm, loading }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 200,
+        background: 'rgba(0,0,0,0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 20,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 360,
+          background: 'var(--surface-raised)',
+          borderRadius: 16,
+          padding: '28px 28px',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.25)',
+          textAlign: 'center',
+        }}
+      >
+        <div style={{ fontSize: 36, marginBottom: 12 }}>⚠️</div>
+        <h3 style={{ fontSize: 15, fontWeight: 800, color: 'var(--primary)', marginBottom: 8 }}>
+          Hapus pengguna ini?
+        </h3>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 24, lineHeight: 1.6 }}>
+          <strong>{user.nama}</strong> ({user.email}) akan dihapus permanen dan tidak bisa login lagi.
+        </p>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={onClose}
+            disabled={loading}
+            style={{
+              flex: 1, padding: '10px 0', borderRadius: 8,
+              background: 'var(--surface-inset)',
+              border: '1px solid var(--border)',
+              fontSize: 13, fontWeight: 600,
+              color: 'var(--text-secondary)', cursor: 'pointer',
+            }}
+          >
+            Batal
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            style={{
+              flex: 1, padding: '10px 0', borderRadius: 8,
+              background: 'var(--danger)',
+              border: 'none', color: '#fff',
+              fontSize: 13, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {loading ? 'Menghapus...' : 'Ya, Hapus'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Generate Password Modal (khusus siswa) ───────────────────────────────
+function GeneratePasswordModal({ user, onClose }) {
+  const [loading, setLoading] = useState(false);
+  const [password, setPassword] = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleGenerate = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeader(),
+        },
+        body: JSON.stringify({ action: 'generate-password' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Gagal generate password');
+      } else {
+        setPassword(data.password);
+      }
+    } catch {
+      toast.error('Terjadi kesalahan jaringan');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(password);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 200,
+        background: 'rgba(0,0,0,0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 20,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 380,
+          background: 'var(--surface-raised)',
+          borderRadius: 16,
+          padding: '28px 28px',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.25)',
+          textAlign: 'center',
+        }}
+      >
+        <div style={{ fontSize: 36, marginBottom: 12 }}>🔑</div>
+        <h3 style={{ fontSize: 15, fontWeight: 800, color: 'var(--primary)', marginBottom: 8 }}>
+          Generate Password Siswa
+        </h3>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.6 }}>
+          Password baru untuk <strong>{user.nama}</strong> akan menggantikan password lama.
+        </p>
+
+        {!password ? (
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              onClick={onClose}
+              disabled={loading}
+              style={{
+                flex: 1, padding: '10px 0', borderRadius: 8,
+                background: 'var(--surface-inset)',
+                border: '1px solid var(--border)',
+                fontSize: 13, fontWeight: 600,
+                color: 'var(--text-secondary)', cursor: 'pointer',
+              }}
+            >
+              Batal
+            </button>
+            <button
+              onClick={handleGenerate}
+              disabled={loading}
+              style={{
+                flex: 1, padding: '10px 0', borderRadius: 8,
+                background: 'var(--primary)',
+                border: 'none', color: '#fff',
+                fontSize: 13, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {loading ? 'Membuat...' : 'Generate'}
+            </button>
+          </div>
+        ) : (
+          <>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '10px 14px', borderRadius: 9,
+              border: '1.5px dashed var(--primary)', background: 'rgba(15,76,92,0.06)',
+              marginBottom: 14,
+            }}>
+              <code style={{ fontSize: 15, fontWeight: 700, color: 'var(--primary)', letterSpacing: 0.5 }}>
+                {password}
+              </code>
+              <button
+                onClick={handleCopy}
+                style={{
+                  border: 'none', background: 'transparent', cursor: 'pointer',
+                  fontSize: 12, fontWeight: 700, color: 'var(--primary)',
+                }}
+              >
+                {copied ? '✓ Disalin' : 'Salin'}
+              </button>
+            </div>
+            <p style={{ fontSize: 11, color: 'var(--danger)', marginBottom: 16 }}>
+              Catat/salin sekarang — password ini tidak akan ditampilkan lagi.
+            </p>
+            <button
+              onClick={onClose}
+              style={{
+                width: '100%', padding: '10px 0', borderRadius: 8,
+                background: 'var(--primary)', border: 'none', color: '#fff',
+                fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              Selesai
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Role Badge ───────────────────────────────────────────────────────────
 function RoleBadge({ role }) {
   const isAdmin = role === 'admin';
@@ -248,39 +620,58 @@ export default function ManajemenUserPage() {
   const [users, setUsers]         = useState([]);
   const [loading, setLoading]     = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [deletingUser, setDeletingUser] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [generatingUser, setGeneratingUser] = useState(null);
   const [search, setSearch]       = useState('');
   const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
-    // Guard: hanya admin yang boleh masuk
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) { router.replace('/login'); return; }
-      supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single()
-        .then(({ data }) => {
-          if (data?.role !== 'admin') {
-            toast.error('Akses ditolak. Hanya admin yang dapat masuk ke halaman ini.');
-            router.replace('/dashboard');
-            return;
-          }
-          setCurrentUser(data);
-          fetchUsers();
-        });
-    });
+    const user = getUser();
+    if (!user) { router.replace('/login'); return; }
+    if (user.role !== 'admin') {
+      toast.error('Akses ditolak. Hanya admin yang dapat masuk ke halaman ini.');
+      router.replace('/dashboard');
+      return;
+    }
+    setCurrentUser(user);
+    fetchUsers();
   }, []);
 
   const fetchUsers = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) toast.error('Gagal memuat daftar pengguna');
-    else setUsers(data || []);
+    const res = await fetch('/api/users', { headers: { ...authHeader() } });
+    if (!res.ok) {
+      toast.error('Gagal memuat daftar pengguna');
+    } else {
+      const result = await res.json();
+      setUsers(result.data || []);
+    }
     setLoading(false);
+  };
+
+  const handleDelete = async () => {
+    if (!deletingUser) return;
+    setDeleteLoading(true);
+    try {
+      const res = await fetch(`/api/users/${deletingUser.id}`, {
+        method: 'DELETE',
+        headers: { ...authHeader() },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Gagal menghapus pengguna');
+      } else {
+        toast.success(`Pengguna "${deletingUser.nama}" berhasil dihapus`);
+        setDeletingUser(null);
+        fetchUsers();
+      }
+    } catch {
+      toast.error('Terjadi kesalahan jaringan');
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   const filtered = users.filter(u =>
@@ -299,8 +690,28 @@ export default function ManajemenUserPage() {
           onSuccess={() => { setShowCreate(false); fetchUsers(); }}
         />
       )}
+      {editingUser && (
+        <EditUserModal
+          user={editingUser}
+          onClose={() => setEditingUser(null)}
+          onSuccess={() => { setEditingUser(null); fetchUsers(); }}
+        />
+      )}
+      {deletingUser && (
+        <DeleteUserModal
+          user={deletingUser}
+          loading={deleteLoading}
+          onClose={() => !deleteLoading && setDeletingUser(null)}
+          onConfirm={handleDelete}
+        />
+      )}
+      {generatingUser && (
+        <GeneratePasswordModal
+          user={generatingUser}
+          onClose={() => setGeneratingUser(null)}
+        />
+      )}
 
-      {/* Page header */}
       <div style={{
         display: 'flex', alignItems: 'flex-start',
         justifyContent: 'space-between', gap: 16,
@@ -333,7 +744,6 @@ export default function ManajemenUserPage() {
         </button>
       </div>
 
-      {/* Stats row */}
       <div style={{ display: 'flex', gap: 14, marginBottom: 22, flexWrap: 'wrap' }}>
         {[
           { label: 'Total Pengguna', value: users.length, icon: '👥', color: 'var(--primary)' },
@@ -360,7 +770,6 @@ export default function ManajemenUserPage() {
         ))}
       </div>
 
-      {/* Search */}
       <div style={{ marginBottom: 16, position: 'relative', maxWidth: 320 }}>
         <span style={{
           position: 'absolute', left: 12, top: '50%',
@@ -384,16 +793,14 @@ export default function ManajemenUserPage() {
         />
       </div>
 
-      {/* Table */}
       <div style={{
         background: 'var(--surface-raised)',
         border: '1px solid var(--border)',
         borderRadius: 14, overflow: 'hidden',
       }}>
-        {/* Table header */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '2fr 2.5fr 1fr 1fr',
+          gridTemplateColumns: '2fr 2.5fr 1fr 1fr 130px',
           padding: '10px 20px',
           background: 'var(--surface-inset)',
           borderBottom: '1px solid var(--border)',
@@ -405,9 +812,9 @@ export default function ManajemenUserPage() {
           <span>Email</span>
           <span>Role</span>
           <span>Bergabung</span>
+          <span>Aksi</span>
         </div>
 
-        {/* Rows */}
         {loading ? (
           <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
             Memuat data...
@@ -440,7 +847,7 @@ export default function ManajemenUserPage() {
                 key={user.id}
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '2fr 2.5fr 1fr 1fr',
+                  gridTemplateColumns: '2fr 2.5fr 1fr 1fr 130px',
                   padding: '13px 20px',
                   borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none',
                   alignItems: 'center',
@@ -450,7 +857,6 @@ export default function ManajemenUserPage() {
                 onMouseEnter={e => !isSelf && (e.currentTarget.style.background = 'var(--surface-inset)')}
                 onMouseLeave={e => e.currentTarget.style.background = isSelf ? 'rgba(15,76,92,0.03)' : 'transparent'}
               >
-                {/* Name + avatar */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{
                     width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
@@ -478,7 +884,6 @@ export default function ManajemenUserPage() {
                   </div>
                 </div>
 
-                {/* Email */}
                 <div style={{
                   fontSize: 12, color: 'var(--text-muted)',
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -486,16 +891,57 @@ export default function ManajemenUserPage() {
                   {user.email}
                 </div>
 
-                {/* Role badge */}
                 <div><RoleBadge role={user.role} /></div>
 
-                {/* Joined date */}
                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                   {user.created_at
                     ? new Date(user.created_at).toLocaleDateString('id-ID', {
                         day: 'numeric', month: 'short', year: 'numeric',
                       })
                     : '—'}
+                </div>
+
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {user.role === 'siswa' && (
+                    <button
+                      onClick={() => setGeneratingUser(user)}
+                      title="Generate Password Baru"
+                      style={{
+                        width: 28, height: 28, borderRadius: 7,
+                        background: 'var(--surface-inset)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text-secondary)',
+                        fontSize: 13, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >🔑</button>
+                  )}
+                  <button
+                    onClick={() => setEditingUser(user)}
+                    title="Edit"
+                    style={{
+                      width: 28, height: 28, borderRadius: 7,
+                      background: 'var(--surface-inset)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text-secondary)',
+                      fontSize: 13, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >✏️</button>
+                  <button
+                    onClick={() => !isSelf && setDeletingUser(user)}
+                    disabled={isSelf}
+                    title={isSelf ? 'Tidak bisa menghapus akun sendiri' : 'Hapus'}
+                    style={{
+                      width: 28, height: 28, borderRadius: 7,
+                      background: isSelf ? 'var(--surface-inset)' : 'var(--danger-bg)',
+                      border: '1px solid var(--border)',
+                      color: isSelf ? 'var(--text-muted)' : 'var(--danger)',
+                      fontSize: 13, cursor: isSelf ? 'not-allowed' : 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      opacity: isSelf ? 0.5 : 1,
+                    }}
+                  >🗑️</button>
                 </div>
               </div>
             );

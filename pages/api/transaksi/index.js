@@ -1,5 +1,5 @@
 import { requireAuth } from '../../../lib/auth';
-import { supabase } from '../../../lib/supabase';
+import { query } from '../../../lib/db';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
@@ -9,18 +9,50 @@ export default async function handler(req, res) {
 
   const { dari, sampai, limit = 50, offset = 0 } = req.query;
 
-  let query = supabase
-    .from('transaksi')
-    .select('*, profiles(nama), jurnal_entri(*, akun(kode, nama, tipe))', { count: 'exact' })
-    .order('tanggal', { ascending: false })
-    .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+  const conditions = [];
+  const params = [];
 
-  if (dari) query = query.gte('tanggal', dari);
-  if (sampai) query = query.lte('tanggal', sampai);
+  if (dari) {
+    params.push(dari);
+    conditions.push(`t.tanggal >= $${params.length}`);
+  }
+  if (sampai) {
+    params.push(sampai);
+    conditions.push(`t.tanggal <= $${params.length}`);
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-  const { data, error, count } = await query;
+  const dataParams = [...params, parseInt(limit), parseInt(offset)];
+  const limitIdx = dataParams.length - 1;
+  const offsetIdx = dataParams.length;
 
-  if (error) return res.status(500).json({ error: error.message });
+  const { rows } = await query(
+    `SELECT
+       t.*,
+       p.nama AS profiles_nama,
+       COALESCE(
+         json_agg(
+           json_build_object(
+             'id', j.id, 'debit', j.debit, 'kredit', j.kredit,
+             'akun', json_build_object('kode', a.kode, 'nama', a.nama, 'tipe', a.tipe)
+           )
+         ) FILTER (WHERE j.id IS NOT NULL), '[]'
+       ) AS jurnal_entri
+     FROM transaksi t
+     LEFT JOIN profiles p ON p.id = t.created_by
+     LEFT JOIN jurnal_entri j ON j.transaksi_id = t.id
+     LEFT JOIN akun a ON a.id = j.akun_id
+     ${where}
+     GROUP BY t.id, p.nama
+     ORDER BY t.tanggal DESC
+     LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+    dataParams
+  );
 
-  return res.status(200).json({ data, total: count });
+  const { rows: countRows } = await query(
+    `SELECT COUNT(*) FROM transaksi t ${where}`,
+    params
+  );
+
+  return res.status(200).json({ data: rows, total: parseInt(countRows[0].count, 10) });
 }

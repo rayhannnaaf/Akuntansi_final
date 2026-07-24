@@ -1,18 +1,17 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { supabase } from '../lib/supabase';
+import { getUser } from '../lib/auth-client';
 
 export default function Index() {
   const router = useRouter();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        router.replace('/dashboard');
-      } else {
-        router.replace('/login');
-      }
-    });
+    const user = getUser();
+    if (user) {
+      router.replace('/dashboard');
+    } else {
+      router.replace('/login');
+    }
   }, []);
 
   return (

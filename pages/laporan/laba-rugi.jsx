@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import Layout from '../../components/layout/Layout';
 import { Card, Spinner, Empty, Badge, Button } from '../../components/ui';
-import { supabase } from '../../lib/supabase';
-import { formatRupiah, hitungNeracaSaldo, hitungLabaRugi } from '../../lib/akuntansi';
+import { authHeader } from '../../lib/auth-client';
+import { formatRupiah } from '../../lib/akuntansi';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 
@@ -16,18 +16,14 @@ export default function LabaRugiPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [{ data: akunList }, { data: jurnalList }] = await Promise.all([
-      supabase.from('akun').select('*').eq('aktif', true),
-      supabase.from('jurnal_entri').select('*'),
-    ]);
+    // Pengganti dua query supabase (akun + jurnal_entri) — sudah dihitung server-side
+    const res = await fetch('/api/laporan/neraca-saldo', { headers: { ...authHeader() } });
+    const result = await res.json();
 
-    if (akunList && jurnalList) {
-      const neraca = hitungNeracaSaldo(akunList, jurnalList);
-      const lr = hitungLabaRugi(neraca);
-
-      setPendapatanList(neraca.filter(a => a.tipe === 'pendapatan' && a.saldo > 0));
-      setBebanList(neraca.filter(a => a.tipe === 'beban' && a.saldo > 0));
-      setLrData(lr);
+    if (result.neracaSaldo) {
+      setPendapatanList(result.neracaSaldo.filter(a => a.tipe === 'pendapatan' && a.saldo > 0));
+      setBebanList(result.neracaSaldo.filter(a => a.tipe === 'beban' && a.saldo > 0));
+      setLrData(result.labaRugi);
     }
     setLoading(false);
   };
@@ -96,7 +92,6 @@ export default function LabaRugiPage() {
       </div>
 
       <Card style={{ maxWidth: 680, margin: '0 auto' }}>
-        {/* Kop Laporan */}
         <div style={{ textAlign: 'center', padding: '16px 0 24px', borderBottom: '2px solid var(--primary)', marginBottom: 8 }}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
             SMA — Sistem Akuntansi Sekolah
@@ -109,21 +104,18 @@ export default function LabaRugiPage() {
 
         {loading ? <Spinner /> : !lrData ? <Empty message="Tidak ada data" /> : (
           <div style={{ padding: '8px 0' }}>
-            {/* PENDAPATAN */}
             <SectionHeader title="PENDAPATAN" color="var(--success)" />
             {pendapatanList.length === 0 ? (
               <div style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: 13 }}>Belum ada pendapatan</div>
             ) : pendapatanList.map(a => <AkunRow key={a.id} akun={a} indent />)}
             <TotalRow label="Total Pendapatan" value={lrData.totalPendapatan} color="var(--success)" />
 
-            {/* BEBAN */}
             <SectionHeader title="BEBAN" color="var(--danger)" />
             {bebanList.length === 0 ? (
               <div style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: 13 }}>Belum ada beban</div>
             ) : bebanList.map(a => <AkunRow key={a.id} akun={a} indent />)}
             <TotalRow label="Total Beban" value={lrData.totalBeban} color="var(--danger)" />
 
-            {/* LABA/RUGI BERSIH */}
             <div style={{ marginTop: 20, padding: '0 0 8px' }}>
               <div style={{
                 background: lrData.isLaba

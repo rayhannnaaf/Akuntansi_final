@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Layout from '../components/layout/Layout';
 import { Card, Button, Input, Select, Table, Tr, Td, Spinner, Empty } from '../components/ui';
-import { supabase } from '../lib/supabase';
+import { getUser, authHeader } from '../lib/auth-client';
 import { formatRupiah, validasiTransaksi } from '../lib/akuntansi';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
@@ -19,7 +19,6 @@ export default function TransaksiPage() {
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
-  // Form state
   const [form, setForm] = useState({
     tanggal: format(new Date(), 'yyyy-MM-dd'),
     nomorBukti: '',
@@ -31,18 +30,22 @@ export default function TransaksiPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [{ data: transaksi }, { data: akun }] = await Promise.all([
-      supabase.from('transaksi').select('*, profiles(nama)').order('tanggal', { ascending: false }).limit(50),
-      supabase.from('akun').select('*').eq('aktif', true).order('kode'),
+    const [transaksiRes, akunRes] = await Promise.all([
+      fetch('/api/transaksi?limit=50', { headers: { ...authHeader() } }),
+      fetch('/api/akun', { headers: { ...authHeader() } }),
     ]);
-    setTransaksiList(transaksi || []);
-    setAkunList(akun || []);
+    const transaksiResult = await transaksiRes.json();
+    const akunResult = await akunRes.json();
+
+    setTransaksiList(transaksiResult.data || []);
+    setAkunList(akunResult.data || []);
     setLoading(false);
   };
 
   const handleSimpan = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { toast.error('Sesi habis, silakan login kembali'); return; }
+    // Pengganti pengecekan supabase.auth.getSession()
+    const user = getUser();
+    if (!user) { toast.error('Sesi habis, silakan login kembali'); return; }
 
     if (!form.tanggal || !form.nomorBukti || !form.keterangan) {
       toast.error('Lengkapi data transaksi');
@@ -61,11 +64,10 @@ export default function TransaksiPage() {
     const totalNilai = entriValid.reduce((s, e) => s + e.debit, 0);
 
     setSaving(true);
-    const token = session.access_token;
 
     const res = await fetch('/api/transaksi/buat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
       body: JSON.stringify({ ...form, entri: entriValid, totalNilai }),
     });
     const result = await res.json();
@@ -114,14 +116,12 @@ export default function TransaksiPage() {
         </Button>
       </div>
 
-      {/* Form Input Transaksi */}
       {showForm && (
         <Card style={{ marginBottom: 24 }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 20, color: 'var(--primary)', paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
              Form Input Transaksi
           </h3>
 
-          {/* Header Transaksi */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 12, marginBottom: 20 }}>
             <Input
               label="Tanggal"
@@ -143,7 +143,6 @@ export default function TransaksiPage() {
             />
           </div>
 
-          {/* Entri Jurnal */}
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
@@ -152,7 +151,6 @@ export default function TransaksiPage() {
               <Button onClick={addEntri} variant="ghost" size="sm">+ Tambah Baris</Button>
             </div>
 
-            {/* Header tabel jurnal */}
             <div style={{
               display: 'grid', gridTemplateColumns: '3fr 2fr 2fr 36px',
               gap: 8, padding: '6px 0',
@@ -212,7 +210,6 @@ export default function TransaksiPage() {
               </div>
             ))}
 
-            {/* Total */}
             <div style={{
               display: 'grid', gridTemplateColumns: '3fr 2fr 2fr 36px',
               gap: 8, padding: '10px 0',
@@ -229,7 +226,6 @@ export default function TransaksiPage() {
               <span></span>
             </div>
 
-            {/* Balance indicator */}
             <div style={{
               padding: '8px 12px', borderRadius: 8, marginTop: 8,
               background: seimbang ? 'var(--success-bg)' : 'var(--danger-bg)',
@@ -250,7 +246,6 @@ export default function TransaksiPage() {
         </Card>
       )}
 
-      {/* Daftar Transaksi */}
       <Card>
         <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, color: 'var(--primary)' }}>
           Riwayat Transaksi ({transaksiList.length})
@@ -265,7 +260,7 @@ export default function TransaksiPage() {
                 <Td><span style={{ fontFamily: 'DM Mono', fontSize: 11, background: 'var(--surface)', padding: '2px 6px', borderRadius: 4 }}>{t.nomor_bukti}</span></Td>
                 <Td>{t.keterangan}</Td>
                 <Td mono right>{formatRupiah(t.total_nilai)}</Td>
-                <Td>{t.profiles?.nama || '-'}</Td>
+                <Td>{t.profiles_nama || '-'}</Td>
               </Tr>
             ))}
           </Table>

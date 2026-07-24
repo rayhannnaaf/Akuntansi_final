@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
-import { signIn } from '../lib/auth';
+import { signIn } from '../lib/auth-client';
 import toast from 'react-hot-toast';
 
 export default function LoginPage() {

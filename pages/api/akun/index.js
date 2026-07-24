@@ -1,5 +1,5 @@
 import { requireAuth } from '../../../lib/auth';
-import { supabase } from '../../../lib/supabase';
+import { query } from '../../../lib/db';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
@@ -9,14 +9,21 @@ export default async function handler(req, res) {
 
   const { tipe, aktif = 'true' } = req.query;
 
-  let query = supabase.from('akun').select('*').order('kode');
+  const conditions = [];
+  const params = [];
 
-  if (tipe) query = query.eq('tipe', tipe);
-  if (aktif !== 'all') query = query.eq('aktif', aktif === 'true');
+  if (tipe) {
+    params.push(tipe);
+    conditions.push(`tipe = $${params.length}`);
+  }
+  if (aktif !== 'all') {
+    params.push(aktif === 'true');
+    conditions.push(`aktif = $${params.length}`);
+  }
 
-  const { data, error } = await query;
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-  if (error) return res.status(500).json({ error: error.message });
+  const { rows } = await query(`SELECT * FROM akun ${where} ORDER BY kode`, params);
 
-  return res.status(200).json({ data });
+  return res.status(200).json({ data: rows });
 }
