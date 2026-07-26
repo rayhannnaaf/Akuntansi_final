@@ -1,5 +1,6 @@
+// pages/api/laporan/neraca-saldo.js
+import { query } from '../../../lib/db';
 import { requireAuth } from '../../../lib/auth';
-import { supabase } from '../../../lib/supabase';
 import { hitungNeracaSaldo, hitungLabaRugi } from '../../../lib/akuntansi';
 
 export default async function handler(req, res) {
@@ -8,21 +9,20 @@ export default async function handler(req, res) {
   const user = await requireAuth(req, res);
   if (!user) return;
 
-  const [{ data: akunList, error: akunErr }, { data: jurnalList, error: jurnalErr }] = await Promise.all([
-    supabase.from('akun').select('*').eq('aktif', true).order('kode'),
-    supabase.from('jurnal_entri').select('*'),
-  ]);
+  try {
+    const { rows: akunList } = await query(
+      `SELECT id, kode, nama, tipe, saldo_awal FROM akun WHERE aktif = true ORDER BY kode ASC`
+    );
+    const { rows: jurnalList } = await query(
+      `SELECT akun_id, debit, kredit FROM jurnal_entri`
+    );
 
-  if (akunErr || jurnalErr) {
-    return res.status(500).json({ error: akunErr?.message || jurnalErr?.message });
+    const neracaSaldo = hitungNeracaSaldo(akunList, jurnalList);
+    const labaRugi = hitungLabaRugi(neracaSaldo);
+
+    return res.status(200).json({ neracaSaldo, labaRugi });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Gagal menghitung neraca saldo' });
   }
-
-  const neracaSaldo = hitungNeracaSaldo(akunList || [], jurnalList || []);
-  const labaRugi = hitungLabaRugi(neracaSaldo);
-
-  return res.status(200).json({
-    neracaSaldo,
-    labaRugi,
-    tanggal: new Date().toISOString(),
-  });
 }

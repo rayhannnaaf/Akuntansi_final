@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import Layout from '../../components/layout/Layout';
 import { Card, Table, Tr, Td, Spinner, Empty, Badge, Button } from '../../components/ui';
-import { supabase } from '../../lib/supabase';
-import { formatRupiah, hitungNeracaSaldo, hitungSaldo, SALDO_NORMAL } from '../../lib/akuntansi';
+import { authHeader } from '../../lib/auth-client';
+import { formatRupiah, SALDO_NORMAL } from '../../lib/akuntansi';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 
@@ -21,15 +21,13 @@ export default function NeracaSaldoPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [{ data: akunList }, { data: jurnalList }] = await Promise.all([
-      supabase.from('akun').select('*').eq('aktif', true).order('kode'),
-      supabase.from('jurnal_entri').select('*'),
-    ]);
+    // Pengganti dua query supabase (akun + jurnal_entri) — sudah dihitung server-side
+    const res = await fetch('/api/laporan/neraca-saldo', { headers: { ...authHeader() } });
+    const result = await res.json();
 
-    if (akunList && jurnalList) {
-      const neraca = hitungNeracaSaldo(akunList, jurnalList);
+    if (result.neracaSaldo) {
+      const neraca = result.neracaSaldo;
 
-      // Hitung total berdasarkan saldo normal akun
       let tD = 0, tK = 0;
       neraca.forEach(a => {
         const saldoN = SALDO_NORMAL[a.tipe];
@@ -102,7 +100,6 @@ export default function NeracaSaldoPage() {
               })}
             </Table>
 
-            {/* Footer Total */}
             <div style={{
               display: 'grid', gridTemplateColumns: '3fr 1fr 1fr',
               background: 'var(--primary)',

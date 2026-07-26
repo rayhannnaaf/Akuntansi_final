@@ -1,5 +1,6 @@
 import { requireAuth } from '../../../lib/auth';
-import { supabase } from '../../../lib/supabase';
+import { query } from '../../../lib/db';
+import pool from '../../../lib/db';
 import { validasiTransaksi } from '../../../lib/akuntansi';
 
 export default async function handler(req, res) {
@@ -7,92 +8,72 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Autentikasi
   const user = await requireAuth(req, res);
   if (!user) return;
 
   const { tanggal, nomorBukti, keterangan, totalNilai, entri } = req.body;
 
-  // Validasi input
   if (!tanggal || !nomorBukti || !keterangan) {
     return res.status(400).json({ error: 'Data transaksi tidak lengkap' });
   }
 
-  // Validasi double-entry
   const { valid, pesan } = validasiTransaksi(entri || []);
   if (!valid) {
     return res.status(400).json({ error: pesan });
   }
 
   // Validasi nomor bukti unik
-  const { data: existing } = await supabase
-    .from('transaksi')
-    .select('id')
-    .eq('nomor_bukti', nomorBukti)
-    .single();
-
-  if (existing) {
+  const { rows: existing } = await query('SELECT id FROM transaksi WHERE nomor_bukti = $1', [nomorBukti]);
+  if (existing.length > 0) {
     return res.status(400).json({ error: `Nomor bukti "${nomorBukti}" sudah digunakan` });
   }
 
-  console.log('BODY:', req.body);
-console.log('ENTRI:', entri);
-  // Validasi akun ada semua
+  // Validasi akun ada semua & aktif
   const akunIds = entri.map(e => parseInt(e.akunId));
-  console.log('AKUN IDS:', akunIds);
-  const { data: akunCheck, error: akunErr } = await supabase
-    .from('akun')
-    .select('id, aktif')
-    .in('id', akunIds);
+  const uniqueIds = [...new Set(akunIds)];
+  const { rows: akunCheck } = await query(
+    'SELECT id, aktif FROM akun WHERE id = ANY($1::int[])',
+    [uniqueIds]
+  );
 
-  if (akunErr || !akunCheck || akunCheck.length !== [...new Set(akunIds)].length) {
+  if (akunCheck.length !== uniqueIds.length) {
     return res.status(400).json({ error: 'Satu atau lebih akun tidak ditemukan' });
   }
-
-  const nonaktif = akunCheck.filter(a => !a.aktif);
-  if (nonaktif.length > 0) {
+  if (akunCheck.some(a => !a.aktif)) {
     return res.status(400).json({ error: 'Beberapa akun sudah tidak aktif' });
   }
 
-  // Simpan transaksi (header)
-  const { data: transaksi, error: transaksiErr } = await supabase
-    .from('transaksi')
-    .insert({
-      tanggal,
-      nomor_bukti: nomorBukti,
-      keterangan,
-      total_nilai: totalNilai || 0,
-      created_by: user.id,
-    })
-    .select()
-    .single();
+  // Simpan transaksi + jurnal dalam satu DB transaction (rollback otomatis kalau gagal)
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
 
-  if (transaksiErr) {
-    return res.status(500).json({ error: 'Gagal menyimpan transaksi: ' + transaksiErr.message });
+    const { rows: transaksiRows } = await client.query(
+      `INSERT INTO transaksi (tanggal, nomor_bukti, keterangan, total_nilai, created_by)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [tanggal, nomorBukti, keterangan, totalNilai || 0, user.id]
+    );
+    const transaksi = transaksiRows[0];
+
+    for (const e of entri) {
+      await client.query(
+        `INSERT INTO jurnal_entri (transaksi_id, akun_id, debit, kredit, keterangan)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [transaksi.id, parseInt(e.akunId), parseFloat(e.debit) || 0, parseFloat(e.kredit) || 0, e.keterangan || keterangan]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    return res.status(201).json({
+      success: true,
+      message: 'Transaksi berhasil disimpan',
+      data: { transaksiId: transaksi.id, nomorBukti },
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    return res.status(500).json({ error: 'Gagal menyimpan transaksi: ' + err.message });
+  } finally {
+    client.release();
   }
-
-  // Simpan entri jurnal (detail)
-  const entriData = entri.map(e => ({
-    transaksi_id: transaksi.id,
-    akun_id: parseInt(e.akunId),
-    debit: parseFloat(e.debit) || 0,
-    kredit: parseFloat(e.kredit) || 0,
-    keterangan: e.keterangan || keterangan,
-  }));
-
-  const { error: jurnalErr } = await supabase
-    .from('jurnal_entri')
-    .insert(entriData);
-
-  if (jurnalErr) {
-    // Rollback transaksi header
-    await supabase.from('transaksi').delete().eq('id', transaksi.id);
-    return res.status(500).json({ error: 'Gagal menyimpan jurnal: ' + jurnalErr.message });
-  }
-
-  return res.status(201).json({
-    success: true,
-    message: 'Transaksi berhasil disimpan',
-    data: { transaksiId: transaksi.id, nomorBukti },
-  });
 }

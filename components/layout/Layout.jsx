@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { supabase } from '../../lib/supabase';
+import { getUser, signOut } from '../../lib/auth-client';
 import toast from 'react-hot-toast';
 
 const MENU = [
@@ -12,14 +12,11 @@ const MENU = [
   { href: '/laporan/neraca-saldo',  label: 'Neraca Saldo', icon: '⊟', adminOnly: false },
   { href: '/laporan/laba-rugi',     label: 'Laba Rugi',    icon: '↑↓', adminOnly: false },
   { href: '/laporan/neraca',        label: 'Neraca',       icon: '⊜', adminOnly: false },
-  // Admin-only — rendered only when role === 'admin'
   { href: '/manajemen-user',        label: 'Manajemen User', icon: '👥', adminOnly: true },
 ];
 
-// ── small confirm dialog ──────────────────────────────────────────────────
 function LogoutDialog({ onConfirm, onCancel }) {
   return (
-    // backdrop
     <div
       onClick={onCancel}
       style={{
@@ -28,7 +25,6 @@ function LogoutDialog({ onConfirm, onCancel }) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
     >
-      {/* card — stop propagation so clicking inside doesn't close */}
       <div
         onClick={e => e.stopPropagation()}
         style={{
@@ -78,7 +74,6 @@ function LogoutDialog({ onConfirm, onCancel }) {
   );
 }
 
-// ── layout ────────────────────────────────────────────────────────────────
 export default function Layout({ children, title = 'Pencatatan' }) {
   const router = useRouter();
   const [profile, setProfile]           = useState(null);
@@ -87,36 +82,18 @@ export default function Layout({ children, title = 'Pencatatan' }) {
   const [loggingOut, setLoggingOut]     = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) { router.replace('/login'); return; }
-      supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single()
-        .then(({   data }) => 
-          setProfile(data));
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') router.replace('/login');
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // ── logout ──────────────────────────────────────────────────────────────
-  const handleLogout = async () => {
-    setLoggingOut(true);
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      toast.error('Gagal keluar, coba lagi');
-      setLoggingOut(false);
-      setShowLogout(false);
+    const user = getUser();
+    if (!user) {
+      router.replace('/login');
       return;
     }
+    setProfile(user);
+  }, []);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    signOut();
     toast.success('Berhasil keluar. Sampai jumpa!');
-    // onAuthStateChange will fire SIGNED_OUT → router.replace('/login')
-    // but we also push manually to be safe
     router.replace('/login');
   };
 
@@ -126,7 +103,6 @@ export default function Layout({ children, title = 'Pencatatan' }) {
 
   return (
     <>
-      {/* ── logout confirmation dialog ─────────────────────────────── */}
       {showLogout && (
         <LogoutDialog
           onConfirm={handleLogout}
@@ -136,7 +112,6 @@ export default function Layout({ children, title = 'Pencatatan' }) {
 
       <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--surface)' }}>
 
-        {/* ── sidebar ─────────────────────────────────────────────── */}
         <aside style={{
           width: sidebarOpen ? 'var(--sidebar-width)' : '60px',
           background: 'var(--primary-dark)',
@@ -147,7 +122,6 @@ export default function Layout({ children, title = 'Pencatatan' }) {
           overflow: 'hidden',
         }}>
 
-          {/* brand */}
           <div style={{
             padding: sidebarOpen ? '20px 20px 16px' : '20px 12px 16px',
             borderBottom: '1px solid rgba(255,255,255,0.08)',
@@ -173,7 +147,6 @@ export default function Layout({ children, title = 'Pencatatan' }) {
             </div>
           </div>
 
-          {/* nav */}
           <nav style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
             {visibleMenu.map(item => {
               const active = router.pathname.startsWith(item.href);
@@ -229,7 +202,6 @@ export default function Layout({ children, title = 'Pencatatan' }) {
             })}
           </nav>
 
-          {/* user panel + logout */}
           <div style={{
             padding: sidebarOpen ? '14px 16px' : '14px 10px',
             borderTop: '1px solid rgba(255,255,255,0.08)',
@@ -243,7 +215,6 @@ export default function Layout({ children, title = 'Pencatatan' }) {
                   Akun Anda
                 </div>
 
-                {/* profile row */}
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10,
                 }}>
@@ -281,7 +252,6 @@ export default function Layout({ children, title = 'Pencatatan' }) {
                   </div>
                 </div>
 
-                {/* logout button */}
                 <button
                   onClick={() => setShowLogout(true)}
                   style={{
@@ -303,7 +273,6 @@ export default function Layout({ children, title = 'Pencatatan' }) {
                 </button>
               </>
             ) : (
-              /* collapsed sidebar — just show logout icon */
               <button
                 onClick={() => setShowLogout(true)}
                 title="Keluar"
@@ -322,14 +291,12 @@ export default function Layout({ children, title = 'Pencatatan' }) {
           </div>
         </aside>
 
-        {/* ── main area ──────────────────────────────────────────────── */}
         <div style={{
           marginLeft: sidebarOpen ? 'var(--sidebar-width)' : '60px',
           flex: 1, transition: 'margin-left 0.2s ease',
           display: 'flex', flexDirection: 'column',
           minHeight: '100vh',
         }}>
-          {/* top bar */}
           <header style={{
             height: 'var(--header-height)',
             background: 'var(--surface-raised)',
@@ -353,7 +320,6 @@ export default function Layout({ children, title = 'Pencatatan' }) {
               {title}
             </h1>
 
-            {/* top-bar logout shortcut */}
             <div style={{ marginLeft: 'auto' }}>
               <button
                 onClick={() => setShowLogout(true)}
@@ -384,7 +350,6 @@ export default function Layout({ children, title = 'Pencatatan' }) {
             </div>
           </header>
 
-          {/* page content */}
           <main style={{ flex: 1, padding: '24px' }}>
             {children}
           </main>
